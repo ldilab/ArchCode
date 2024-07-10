@@ -1,0 +1,123 @@
+source:
+  - name: HumanEval
+    path: openai/openai_humaneval
+    type: huggingface
+    sort_key: task_id
+    kwargs:
+      split: test
+  - name: HumanEval-like
+    path: data/humaneval_like.json
+    type: json
+    sort_key: id
+  - name: HumanEval-NF
+    path: data/humaneval_nf.json
+    type: json
+    sort_key: id
+
+dataset:
+  - name: target
+    primary_key: id
+    fields:
+      - name: id
+        source: HumanEval
+        key: task_id
+      - name: prompt
+        source: HumanEval
+        key: prompt
+      - name: gold_tc
+        source: HumanEval-NF
+        key: test
+
+  - name: example
+    primary_key: id
+    fields:
+      - name: id
+        source: HumanEval-like
+        key: id
+      - name: prompt
+        source: HumanEval-like
+        key: prompt
+      - name: requirements
+        source: HumanEval-like
+        key: requirements
+      - name: plan
+        source: HumanEval-like
+        key: final_plan
+      - name: code
+        source: HumanEval-like
+        key: code
+      - name: gen_tc
+        source: HumanEval-like
+        key: gen_tc
+
+graph:
+  entry_point: initialize
+
+  edges:
+    - pair: [initialize, __end__]
+      type: always
+
+  nodes:
+    - name: initialize
+      chains:
+        - name: plan
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 10
+            llm:
+              max_retries: 1000000
+              max_tokens: 2048
+              model: llama3:8b-instruct-fp16
+              platform: open_webui
+              temperature: 0.8
+              top_p: 0.95
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/cot/plan"]
+        - name: code
+          dependencies: [plan]
+          input_keys: [prompt, plan]
+          type: cot
+          kwargs:
+            n: 1
+            llm:
+              max_retries: 1000000
+              max_tokens: 2048
+              model: llama3:8b-instruct-fp16
+              platform: open_webui
+              temperature: 0
+              top_p: 1
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/cot/plan", "templates/cot/code"]
+
+        - name: gold_tc_exec_code
+          dependencies: [code, gold_tc]
+          input_keys: [code, gold_tc]
+          type: custom_lambda
+          key_map: { code: code, gold_tc: testcase }
+          kwargs:
+            src: [code, testcase]
+            func: "lambda code, testcase: code + '\\n\\n' + testcase.format(prediction=code)"
+        - name: exec_result
+          dependencies: [gold_tc_exec_code]
+          input_keys: [gold_tc_exec_code]
+          type: execute
+          kwargs:
+            target: gold_tc_exec_code
+            timeout: 3
+        - name: passed
+          dependencies: [exec_result]
+          input_keys: [exec_result]
+          type: custom_lambda
+          kwargs:
+            src: [exec_result]
+            func: "lambda x: 'Exit Code: 0' in x"

@@ -1,0 +1,7 @@
+```python
+{{ prompt }}
+```
+
+Write testcases for the problem.
+Don't use unittest or any other testing library.
+Package your response in ```python ... ```.

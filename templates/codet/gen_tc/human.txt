@@ -1,0 +1,5 @@
+```python
+{{ prompt }}
+```
+
+Write testcases for the problem. Package your response in ```python ... ```.

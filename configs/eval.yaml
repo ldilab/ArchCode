@@ -1,0 +1,66 @@
+source:
+  - name: HumanEval
+    path: openai/openai_humaneval
+    type: huggingface
+    sort_key: task_id
+    kwargs:
+      split: test
+  - name: generated
+    path: results/llama3_8b-vanilla-nfr/results_merged_1.json
+    type: json
+    sort_key: id
+
+dataset:
+  - name: reference
+    primary_key: id
+    fields:
+      - name: id
+        source: HumanEval
+        key: task_id
+      - name: prompt
+        source: HumanEval
+        key: prompt
+      - name:   
+  - name: prediction
+    primary_key: id
+    fields:
+      - name: id
+        source: HumanEval-like
+        key: id
+      - name: prompt
+        source: HumanEval-like
+        key: prompt
+      - name: code
+        source: HumanEval-like
+        key: code
+        
+
+graph:
+  entry_point: initialize
+
+  edges:
+    - pair: [initialize, __end__]
+      type: always
+
+  nodes:
+    - name: initialize
+      chains:
+        - name: code
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 10
+            llm:
+              max_retries: 1000000
+              max_tokens: 2048
+              model: llama3:8b-instruct-fp16
+              platform: open_webui
+              temperature: 0.8
+              top_p: 0.95
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/vanilla/code"]
