@@ -166,7 +166,6 @@ cython_debug/
 ############################################
 api_keys.json
 .vscode/
-data/
 results/
 wandb/
 third_party/
