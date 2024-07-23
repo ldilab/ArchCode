@@ -7,6 +7,7 @@
 ```bash
 conda create -n ArchCode python=3.10
 conda activate ArchCode
+pip install -r requirements.txt
 ```
 
 ## 2) run third party packages
