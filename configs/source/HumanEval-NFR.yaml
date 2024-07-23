@@ -1,0 +1,5 @@
+name: HumanEval-NFRR
+type: json
+kwargs:
+  path: third_party/HumanEval_NFR/humaneval_nfr.json
+  sort_key: id

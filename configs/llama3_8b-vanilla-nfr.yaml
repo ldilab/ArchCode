@@ -9,7 +9,7 @@ source:
     path: data/humaneval_like.json
     type: json
     sort_key: id
-  - name: HumanEval-NF
+  - name: HumanEval-NFR
     path: data/humaneval_nf.json
     type: json
     sort_key: id
@@ -25,7 +25,7 @@ dataset:
         source: HumanEval
         key: prompt
       - name: gold_tc
-        source: HumanEval-NF
+        source: HumanEval-NFR
         key: test
 
   - name: example
@@ -79,6 +79,7 @@ graph:
               type: chat
               kwargs:
                 body_template_paths: ["templates/vanilla/code"]
+
         - name: gold_tc_exec_code
           dependencies: [code, gold_tc]
           input_keys: [code, gold_tc]
@@ -86,8 +87,11 @@ graph:
           key_map: { code: code, gold_tc: testcase }
           kwargs:
             src: [code, testcase]
-            func: "lambda code, testcase: code + '\\n\\n' + testcase.format(prediction=code)"
-        - name: exec_result
+            func: |
+              def func(code, testcase):
+                  from string import Template
+                  return code + '\n\n' + Template(testcase).substitute(prediction=code)
+        - name: gold_tc_exec_result
           dependencies: [gold_tc_exec_code]
           input_keys: [gold_tc_exec_code]
           type: execute
@@ -95,9 +99,9 @@ graph:
             target: gold_tc_exec_code
             timeout: 3
         - name: passed
-          dependencies: [exec_result]
-          input_keys: [exec_result]
+          dependencies: [gold_tc_exec_result]
+          input_keys: [gold_tc_exec_result]
           type: custom_lambda
           kwargs:
-            src: [exec_result]
+            src: [gold_tc_exec_result]
             func: "lambda x: 'Exit Code: 0' in x"

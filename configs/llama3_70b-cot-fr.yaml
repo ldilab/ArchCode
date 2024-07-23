@@ -9,10 +9,6 @@ source:
     path: data/humaneval_like.json
     type: json
     sort_key: id
-  - name: HumanEval-NFR
-    path: data/humaneval_nf.json
-    type: json
-    sort_key: id
 
 dataset:
   - name: target
@@ -21,11 +17,14 @@ dataset:
       - name: id
         source: HumanEval
         key: task_id
+      - name: entry_point
+        source: HumanEval
+        key: entry_point
       - name: prompt
         source: HumanEval
         key: prompt
       - name: gold_tc
-        source: HumanEval-NFR
+        source: HumanEval
         key: test
 
   - name: example
@@ -37,18 +36,12 @@ dataset:
       - name: prompt
         source: HumanEval-like
         key: prompt
-      - name: requirements
-        source: HumanEval-like
-        key: requirements
       - name: plan
         source: HumanEval-like
-        key: final_plan
+        key: draft_plan
       - name: code
         source: HumanEval-like
-        key: code
-      - name: gen_tc
-        source: HumanEval-like
-        key: gen_tc
+        key: draft_code
 
 graph:
   entry_point: initialize
@@ -69,7 +62,7 @@ graph:
             llm:
               max_retries: 1000000
               max_tokens: 2048
-              model: llama3:8b-instruct-fp16
+              model: llama3:70b-instruct-fp16
               platform: open_webui
               temperature: 0.8
               top_p: 0.95
@@ -88,7 +81,7 @@ graph:
             llm:
               max_retries: 1000000
               max_tokens: 2048
-              model: llama3:8b-instruct-fp16
+              model: llama3:70b-instruct-fp16
               platform: open_webui
               temperature: 0
               top_p: 1
@@ -100,17 +93,13 @@ graph:
                 body_template_paths: ["templates/cot/plan", "templates/cot/code"]
 
         - name: gold_tc_exec_code
-          dependencies: [code, gold_tc]
-          input_keys: [code, gold_tc]
-          type: custom_lambda
-          key_map: { code: code, gold_tc: testcase }
+          dependencies: [code]
+          input_keys: [code, gold_tc, entry_point]
+          type: apply_template
+          key_map: { code: code, gold_tc: testcase, entry_point: entry_point }
           kwargs:
-            src: [code, testcase]
-            func: |
-              def func(code, testcase):
-                  from string import Template
-                  return code + '\n\n' + Template(testcase).substitute(prediction=code)
-        - name: gold_tc_exec_result
+            template_path: templates/eval/exec_code.txt
+        - name: exec_result
           dependencies: [gold_tc_exec_code]
           input_keys: [gold_tc_exec_code]
           type: execute
@@ -118,9 +107,9 @@ graph:
             target: gold_tc_exec_code
             timeout: 3
         - name: passed
-          dependencies: [gold_tc_exec_result]
-          input_keys: [gold_tc_exec_result]
+          dependencies: [exec_result]
+          input_keys: [exec_result]
           type: custom_lambda
           kwargs:
-            src: [gold_tc_exec_result]
+            src: [exec_result]
             func: "lambda x: 'Exit Code: 0' in x"

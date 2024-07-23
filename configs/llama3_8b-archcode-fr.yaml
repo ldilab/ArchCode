@@ -1,18 +1,6 @@
 source:
-  - name: HumanEval
-    path: openai/openai_humaneval
-    type: huggingface
-    sort_key: task_id
-    kwargs:
-      split: test
-  - name: HumanEval-like
-    path: data/humaneval_like.json
-    type: json
-    sort_key: id
-  - name: cache
-    path: results/llama3_8b-archcode-fr/results_merged_1.json
-    type: json
-    sort_key: id
+  - !inc configs/source/HumanEval.yaml
+  - !inc configs/source/HumanEval-like.yaml
 
 dataset:
   - name: target
@@ -30,19 +18,6 @@ dataset:
       - name: gold_tc
         source: HumanEval
         key: test
-
-      - name: plan
-        source: cache
-        key: plan
-      - name: code
-        source: cache
-        key: code
-      - name: requirements
-        source: cache
-        key: requirements
-      # - name: gen_tc
-      #   source: cache
-      #   key: gen_tc
 
   - name: example
     primary_key: id
@@ -70,82 +45,60 @@ graph:
   entry_point: initialize
 
   edges:
-    - pair: [initialize, __end__]
+    - pair: [initialize, execute]
+      type: always
+    - pair: [execute, __end__]
       type: always
 
   nodes:
     - name: initialize
       chains:
-        # - name: requirements
-        #   dependencies: []
-        #   input_keys: [prompt]
-        #   type: cot
-        #   kwargs:
-        #     n: 1
-        #     llm:
-        #       max_retries: 1000000
-        #       max_tokens: 2048
-        #       model: llama3:8b-instruct-fp16
-        #       platform: open_webui
-        #       temperature: 0
-        #       top_p: 1
-        #     parsers:
-        #       - type: code_block
-        #     prompt:
-        #       type: chat
-        #       kwargs:
-        #         body_template_paths: ["templates/archcode/requirements"]
-        # - name: plan
-        #   dependencies: [requirements]
-        #   input_keys: [prompt, requirements]
-        #   type: cot
-        #   kwargs:
-        #     n: 10
-        #     llm:
-        #       max_retries: 1000000
-        #       max_tokens: 2048
-        #       model: llama3:8b-instruct-fp16
-        #       platform: open_webui
-        #       temperature: 0.8
-        #       top_p: 0.95
-        #     parsers:
-        #       - type: code_block
-        #     prompt:
-        #       type: chat
-        #       kwargs:
-        #         body_template_paths: ["templates/archcode/requirements", "templates/cot/plan"]
-        # - name: code
-        #   dependencies: [plan]
-        #   input_keys: [prompt, requirements, plan]
-        #   type: cot
-        #   kwargs:
-        #     n: 1
-        #     llm:
-        #       max_retries: 1000000
-        #       max_tokens: 2048
-        #       model: llama3:8b-instruct-fp16
-        #       platform: open_webui
-        #       temperature: 0
-        #       top_p: 1
-        #     parsers:
-        #       - type: code_block
-        #     prompt:
-        #       type: chat
-        #       kwargs:
-        #         body_template_paths: ["templates/archcode/requirements", "templates/cot/plan", "templates/cot/code"]
+        - name: requirements
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 1
+            llm: !inc configs/llm/llama3_8b-greedy.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/archcode/requirements"]
+        - name: plan
+          dependencies: [requirements]
+          input_keys: [prompt, requirements]
+          type: cot
+          kwargs:
+            n: 10
+            llm: !inc configs/llm/llama3_8b-nucleus.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/archcode/requirements", "templates/cot/plan"]
+        - name: code
+          dependencies: [plan]
+          input_keys: [prompt, requirements, plan]
+          type: cot
+          kwargs:
+            n: 1
+            llm: !inc configs/llm/llama3_8b-greedy.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/archcode/requirements", "templates/cot/plan", "templates/cot/code"]
         - name: gen_tc
           dependencies: [requirements]
           input_keys: [prompt, requirements]
           type: cot
           kwargs:
             n: 1
-            llm:
-              max_retries: 1000000
-              max_tokens: 2048
-              model: llama3:8b-instruct-fp16
-              platform: open_webui
-              temperature: 0
-              top_p: 1
+            llm: !inc configs/llm/llama3_8b-greedy.yaml
             parsers:
               - type: code_block
               - type: find
@@ -156,8 +109,10 @@ graph:
               kwargs:
                 body_template_paths: ["templates/archcode/requirements", "templates/codet/gen_tc"]
 
+    - name: execute
+      chains:
         - name: gen_tc_exec_code
-          dependencies: [code, gen_tc]
+          dependencies: []
           input_keys: [code, gen_tc]
           type: custom_lambda
           key_map: { code: code, gen_tc: testcase }
@@ -180,7 +135,7 @@ graph:
             func: "lambda x: ['Exit Code: 0' in _x for _x in x]"
 
         - name: gold_tc_exec_code
-          dependencies: [code]
+          dependencies: []
           input_keys: [code, gold_tc, entry_point]
           type: apply_template
           key_map: { code: code, gold_tc: testcase, entry_point: entry_point }

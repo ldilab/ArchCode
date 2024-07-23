@@ -1,0 +1,5 @@
+max_tokens: 2048
+model: llama3:8b-instruct-fp16
+platform: open_webui
+temperature: 0.8
+top_p: 0.95
