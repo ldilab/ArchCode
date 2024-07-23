@@ -1,5 +1,7 @@
 # ArchCode
 
+Official implementation of the paper "ArchCode: Incorporating Software Requirements in Code Generation with Large Language Models, ACL 2024".
+
 # 1. How to run it
 
 ## 1) prepare python virtual environment
