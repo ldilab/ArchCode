@@ -168,4 +168,3 @@ api_keys.json
 .vscode/
 results/
 wandb/
-third_party/

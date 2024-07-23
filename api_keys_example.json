@@ -1,0 +1,14 @@
+{
+  "OPEN_WEBUI_API_KEY": "sk-your_key",
+  "OPEN_WEBUI_BASE_URL": "http://your_ollama_or_openwebui_server",
+  "OPENAI_API_KEY": "sk-your_key",
+  "AZURE_ENDPOINT": "https://your_azure_endpoint",
+  "AZURE_API_KEY": "your_key",
+  "AZURE_API_VERSION": "2024-02-01",
+  "CODEEXEC_ENDPOINT": "http://localhost:5097/execute",
+  "WANDB_ENTITY": "your_wandb_entity",
+  "WANDB_PROJECT": "your_wandb_project",
+  "LANGFUSE_SECRET_KEY": "sk-your_key",
+  "LANGFUSE_PUBLIC_KEY": "pk-your_key",
+  "LANGFUSE_HOST": "http://localhost:13001"
+}

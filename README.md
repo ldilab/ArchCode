@@ -9,25 +9,44 @@ conda create -n ArchCode python=3.10
 conda activate ArchCode
 ```
 
-## 2) import third party packages
+## 2) run third party packages
+
+### i. install `expand_langchain`
 
 ```bash
-git clone https://github.com/ldilab/expand_langchain.git third_party/expand_langchain
-pip install -e expand_langchain
+git submodule update --init --recursive
+pip install -e third_party/expand_langchain
 ```
 
-## 3) save API keys
-1. In root directory, make `api_keys.json` file.
-2. save API keys in the file in JSON dictionary format.
+### ii. run `CodeExecContainer`
 
-- Example
-  ```json
-  {
-    "OPENAI_API_KEY": "sk-xxx"
-  }
-  ```
+At a new terminal, run the following command and keep it running.
+
+```bash
+source third_party/CodeExecContainer/run.sh
+```
+
+### iii. run Ollama (for local llm generation)
+
+refer to [Ollama](https://github.com/ollama/ollama) for more information.
+
+```bash
+docker run -d \
+  -v ollama:/root/.ollama \
+  -p 11434:11434 \
+  --name ollama \
+  ollama/ollama
+docker exec -d ollama ollama pull ollama/llama3:8b-instruct-fp16
+```
+
+## 4) save API keys
+
+1. In root directory, copy `api_keys_example.json` to `api_keys.json`.
+2. set your API keys in the file.
 
 ## 4) run python script
+
+refer to [Python Fire](https://google.github.io/python-fire/guide/) for arguments setting.
 
 ### i. generation
 
@@ -40,6 +59,7 @@ python run.py generator \
 ```
 
 ### ii. evaluation
+
 ```bash
 python run.py evaluator \
     --path=results/llama3_8b-archcode-fr/results_merged_1.json \
@@ -52,4 +72,5 @@ python run.py evaluator \
 ```
 
 # 2. Configs
+
 <!-- todo: add explanation about configs -->
