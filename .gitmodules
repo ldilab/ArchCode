@@ -1,3 +1,6 @@
 [submodule "third_party/expand_langchain"]
 	path = third_party/expand_langchain
 	url = https://github.com/ldilab/expand_langchain.git
+[submodule "third_party/CodeExecContainer"]
+	path = third_party/CodeExecContainer
+	url = https://github.com/ldilab/CodeExecContainer.git
