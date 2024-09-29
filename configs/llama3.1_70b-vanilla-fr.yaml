@@ -1,0 +1,83 @@
+source:
+  - !inc configs/source/HumanEval.yaml
+  - !inc configs/source/HumanEval-like.yaml
+  - !inc configs/source/HumanEval-NFR.yaml
+
+dataset:
+  - name: target
+    type: dict
+    kwargs:
+      primary_key: id
+      fields:
+        - name: id
+          source: HumanEval
+          key: task_id
+        - name: entry_point
+          source: HumanEval
+          key: entry_point
+        - name: prompt
+          source: HumanEval
+          key: prompt
+        - name: gold_tc
+          source: HumanEval
+          key: test
+
+  - name: example
+    type: dict
+    kwargs:
+      primary_key: id
+      fields:
+        - name: id
+          source: HumanEval-like
+          key: id
+        - name: prompt
+          source: HumanEval-like
+          key: prompt
+        - name: code
+          source: HumanEval-like
+          key: draft_code
+
+graph:
+  entry_point: initialize
+
+  edges:
+    - pair: [initialize, __end__]
+      type: always
+
+  nodes:
+    - name: initialize
+      chains:
+        - name: code
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 10
+            llm: !inc configs/llm/llama3.1_70b-nucleus.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/vanilla/code"]
+        - name: gold_tc_exec_code
+          dependencies: [code]
+          input_keys: [code, gold_tc, entry_point]
+          type: apply_template
+          key_map: { code: code, gold_tc: testcase, entry_point: entry_point }
+          kwargs:
+            template_path: templates/eval/exec_code.txt
+        - name: exec_result
+          dependencies: [gold_tc_exec_code]
+          input_keys: [gold_tc_exec_code]
+          type: execute
+          kwargs:
+            code_key: gold_tc_exec_code
+            timeout: 3
+        - name: passed
+          dependencies: [exec_result]
+          input_keys: [exec_result]
+          type: custom_lambda
+          kwargs:
+            src: [exec_result]
+            func: "lambda x: 'Exit Code: 0' in x"

@@ -1,0 +1,142 @@
+source:
+  - !inc configs/source/HumanEval.yaml
+  - !inc configs/source/HumanEval-like.yaml
+  - !inc configs/source/HumanEval-NFR.yaml
+
+dataset:
+  - name: target
+    type: dict
+    kwargs:
+      primary_key: id
+      fields:
+        - name: id
+          source: HumanEval
+          key: task_id
+        - name: entry_point
+          source: HumanEval
+          key: entry_point
+        - name: prompt
+          source: HumanEval
+          key: prompt
+        - name: gold_tc
+          source: HumanEval
+          key: test
+
+  - name: example
+    type: dict
+    kwargs:
+      primary_key: id
+      fields:
+        - name: id
+          source: HumanEval-like
+          key: id
+        - name: prompt
+          source: HumanEval-like
+          key: prompt
+        - name: plan
+          source: HumanEval-like
+          key: draft_plan
+        - name: code
+          source: HumanEval-like
+          key: draft_code
+        - name: gen_tc
+          source: HumanEval-like
+          key: gen_tc_fr
+
+graph:
+  entry_point: initialize
+
+  edges:
+    - pair: [initialize, __end__]
+      type: always
+
+  nodes:
+    - name: initialize
+      chains:
+        - name: plan
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 10
+            llm: !inc configs/llm/llama3.1_70b-nucleus.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/cot/plan"]
+        - name: code
+          dependencies: [plan]
+          input_keys: [prompt, plan]
+          type: cot
+          kwargs:
+            n: 1
+            llm: !inc configs/llm/llama3.1_70b-greedy.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/cot/plan", "templates/cot/code"]
+        - name: gen_tc
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 1
+            llm: !inc configs/llm/llama3.1_70b-greedy.yaml
+            parsers:
+              - type: code_block
+              - type: find
+                kwargs:
+                  patterns: ["assert .*?\n"]
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/codet/gen_tc"]
+
+        - name: gen_tc_exec_code
+          dependencies: [code, gen_tc]
+          input_keys: [code, gen_tc]
+          type: custom_lambda
+          key_map: { code: code, gen_tc: testcase }
+          kwargs:
+            src: [code, testcase]
+            func: "lambda code, testcase: [code + '\\n\\n' + t for t in testcase]"
+        - name: gen_tc_exec_result
+          dependencies: [gen_tc_exec_code]
+          input_keys: [gen_tc_exec_code]
+          type: execute
+          kwargs:
+            code_key: gen_tc_exec_code
+            timeout: 3
+        - name: gen_tc_passed
+          dependencies: [gen_tc_exec_result]
+          input_keys: [gen_tc_exec_result]
+          type: custom_lambda
+          kwargs:
+            src: [gen_tc_exec_result]
+            func: "lambda x: ['Exit Code: 0' in _x for _x in x]"
+
+        - name: gold_tc_exec_code
+          dependencies: [code]
+          input_keys: [code, gold_tc, entry_point]
+          type: apply_template
+          key_map: { code: code, gold_tc: testcase, entry_point: entry_point }
+          kwargs:
+            template_path: templates/eval/exec_code.txt
+        - name: gold_tc_exec_result
+          dependencies: [gold_tc_exec_code]
+          input_keys: [gold_tc_exec_code]
+          type: execute
+          kwargs:
+            code_key: gold_tc_exec_code
+            timeout: 3
+        - name: passed
+          dependencies: [gold_tc_exec_result]
+          input_keys: [gold_tc_exec_result]
+          type: custom_lambda
+          kwargs:
+            src: [gold_tc_exec_result]
+            func: "lambda x: 'Exit Code: 0' in x"

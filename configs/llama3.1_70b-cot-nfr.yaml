@@ -1,0 +1,107 @@
+source:
+  - !inc configs/source/HumanEval.yaml
+  - !inc configs/source/HumanEval-like.yaml
+  - !inc configs/source/HumanEval-NFR.yaml
+
+dataset:
+  - name: target
+    type: dict
+    kwargs:
+      primary_key: id
+      fields:
+        - name: id
+          source: HumanEval
+          key: task_id
+        - name: prompt
+          source: HumanEval
+          key: prompt
+        - name: gold_tc
+          source: HumanEval-NFR
+          key: test
+
+  - name: example
+    type: dict
+    kwargs:
+      primary_key: id
+      fields:
+        - name: id
+          source: HumanEval-like
+          key: id
+        - name: prompt
+          source: HumanEval-like
+          key: prompt
+        - name: requirements
+          source: HumanEval-like
+          key: requirements
+        - name: plan
+          source: HumanEval-like
+          key: final_plan
+        - name: code
+          source: HumanEval-like
+          key: code
+        - name: gen_tc
+          source: HumanEval-like
+          key: gen_tc
+
+graph:
+  entry_point: initialize
+
+  edges:
+    - pair: [initialize, __end__]
+      type: always
+
+  nodes:
+    - name: initialize
+      chains:
+        - name: plan
+          dependencies: []
+          input_keys: [prompt]
+          type: cot
+          kwargs:
+            n: 10
+            llm: !inc configs/llm/llama3.1_70b-nucleus.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/cot/plan"]
+        - name: code
+          dependencies: [plan]
+          input_keys: [prompt, plan]
+          type: cot
+          kwargs:
+            n: 1
+            llm: !inc configs/llm/llama3.1_70b-greedy.yaml
+            parsers:
+              - type: code_block
+            prompt:
+              type: chat
+              kwargs:
+                body_template_paths: ["templates/cot/plan", "templates/cot/code"]
+
+        - name: gold_tc_exec_code
+          dependencies: [code, gold_tc]
+          input_keys: [code, gold_tc]
+          type: custom_lambda
+          key_map: { code: code, gold_tc: testcase }
+          kwargs:
+            src: [code, testcase]
+            func: |
+              def func(code, testcase):
+                  from string import Template
+                  return code + '\n\n' + Template(testcase).substitute(prediction=code)
+        - name: gold_tc_exec_result
+          dependencies: [gold_tc_exec_code]
+          input_keys: [gold_tc_exec_code]
+          type: execute
+          kwargs:
+            code_key: gold_tc_exec_code
+            timeout: 3
+        - name: passed
+          dependencies: [gold_tc_exec_result]
+          input_keys: [gold_tc_exec_result]
+          type: custom_lambda
+          kwargs:
+            src: [gold_tc_exec_result]
+            func: "lambda x: 'Exit Code: 0' in x"

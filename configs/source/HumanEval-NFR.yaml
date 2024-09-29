@@ -1,4 +1,4 @@
-name: HumanEval-NFRR
+name: HumanEval-NFR
 type: json
 kwargs:
   path: third_party/HumanEval_NFR/humaneval_nfr.json
