@@ -93,7 +93,7 @@ graph:
               kwargs:
                 body_template_paths: ["templates/archcode/requirements", "templates/cot/plan", "templates/cot/code"]
         - name: gen_tc
-          dependencies: []
+          dependencies: [requirements]
           input_keys: [prompt, requirements]
           type: cot
           kwargs:
