@@ -74,6 +74,68 @@ python run.py evaluator \
     --n=10
 ```
 
+### iii. server
+
+```bash
+python run.py server \
+    - run \
+    --port=8080
+```
+
+The API server has the following endpoints:
+
+- `/generate`: POST request with a json body containing the following fields:
+  - nl_query: str
+  - llm_kwargs: dict
+    - model_name: str = "gpt-4o-mini"
+    - platform: str = "openai"
+    - greedy_kwargs: dict
+      - temperature: float = 0.0
+      - top_p: float = 1.0
+      - max_tokens: int = 2048
+    - nucleus_kwargs: dict
+      - temperature: float = 0.8
+      - top_p: float = 1.0
+      - max_tokens: int = 2048
+  - candidate_num: int = 10
+
+If you want to generate code for a given natural language query, you can send a POST request to the `/generate` endpoint with the following body:
+
+```json
+{
+  "nl_query": "Get the sum of two numbers",
+  "llm_kwargs": {
+    "model_name": "gpt-4o-mini",
+    "platform": "openai",
+    "greedy_kwargs": {
+      "temperature": 0.0,
+      "top_p": 1.0,
+      "max_tokens": 2048
+    },
+    "nucleus_kwargs": {
+      "temperature": 0.8,
+      "top_p": 1.0,
+      "max_tokens": 2048
+    }
+  },
+  "candidate_num": 10
+}
+```
+
+If you want to generate code using only function calls, use generate function
+
+```bash
+python run.py server \
+    - generate \
+    --nl_query="Get the sum of two numbers" \
+    --llm_kwargs='{"model_name": "gpt-4o-mini", "platform": "openai", "greedy_kwargs": {"temperature": 0.0, "top_p": 1.0, "max_tokens": 2048}, "nucleus_kwargs": {"temperature": 0.8, "top_p": 1.0, "max_tokens": 2048}}' \
+    --candidate_num=10
+```
+
 # 2. Configs
 
 <!-- todo: add explanation about configs -->
+
+```
+
+```
