@@ -1,9 +1,13 @@
+import json
 from copy import deepcopy
 
 from expand_langchain.config import Config
 from expand_langchain.generator import Generator
-from flask import Flask, jsonify, request
 from pydantic import BaseModel
+from quart import Quart, Response, jsonify, request
+
+app = Quart(__name__)
+
 
 DEFAULT_LLM_KWARGS = {
     "model_name": "gpt-4o-mini",
@@ -28,20 +32,21 @@ class Server(BaseModel):
 
     # private variables
     _default_config: Config = None
+    _generator: Generator = None
 
     def __init__(self, **data):
         super().__init__(**data)
 
         self._default_config = Config(path=self.default_config_path)
 
-    def run(
+    async def run(
         self,
         port: int,
     ):
         """
         Run the api server with Flask.
         The API server should have the following endpoints:
-        - /generate: POST request with a json body containing the following fields:
+        - /generate: streams the generated results to the client.
             - nl_query: str
             - llm_kwargs: dict = {
                 - model_name: str = "gpt-4o-mini"
@@ -59,36 +64,44 @@ class Server(BaseModel):
               }
             - candidate_num: int = 10
         """
-        app = Flask(__name__)
 
         @app.route("/generate", methods=["POST"])
-        def generate():
-            data = request.json
+        async def generate():
+            data = await request.get_json()
             nl_query = data["nl_query"]
             llm_kwargs = data.get("llm_kwargs", DEFAULT_LLM_KWARGS)
             candidate_num = data.get("candidate_num", 10)
 
-            results = self._generate(
-                nl_query=nl_query,
-                llm_kwargs=llm_kwargs,
-                candidate_num=candidate_num,
-            )
+            async def _generate():
+                config = self._update_config(
+                    candidate_num=candidate_num, llm_kwargs=llm_kwargs
+                )
+                if self._generator is None or self._generator.config != config:
+                    self._generator = Generator(
+                        config=config,
+                        do_save=False,
+                        run_name="user_input",
+                    )
 
-            return jsonify(results)
+                gen = self._generator.astream_user_input(
+                    nl_query=nl_query,
+                    event_names=[
+                        "plan",
+                        "requirements",
+                        "gen_tc",
+                        "code",
+                        "gen_tc_exec_code",
+                        "gen_tc_exec_result",
+                        "gen_tc_passed",
+                    ],
+                )
 
-        app.run(port=port)
+                async for result in gen:
+                    yield json.dumps(result) + "\n"
 
-    def generate(
-        self,
-        nl_query: str,
-        candidate_num: int = 10,
-        llm_kwargs: dict = DEFAULT_LLM_KWARGS,
-    ):
-        config = self._update_config(candidate_num=candidate_num, llm_kwargs=llm_kwargs)
-        generator = Generator(config=config, do_save=False, run_name="user_input")
-        result = generator.run_user_input(nl_query=nl_query)
+            return Response(_generate(), content_type="application/json")
 
-        return result
+        await app.run_task(port=port)
 
     def _update_config(self, candidate_num: int, llm_kwargs: dict):
         new_config = deepcopy(self._default_config)
